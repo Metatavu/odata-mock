@@ -23,6 +23,9 @@ class DataProvider {
 
     /**
      * Reads entities for entity set
+     *
+     * @param edmEntitySet Entity set
+     * @return entity collection
      */
     fun readAll(edmEntitySet: EdmEntitySet): EntityCollection {
         val result = EntityCollection()
