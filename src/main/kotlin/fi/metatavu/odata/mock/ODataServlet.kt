@@ -15,7 +15,6 @@ import java.io.IOException
 import java.io.InputStreamReader
 import javax.servlet.ServletException
 import javax.servlet.annotation.WebServlet
-import javax.servlet.http.HttpServlet
 import javax.servlet.http.HttpServletRequest
 import javax.servlet.http.HttpServletResponse
 import javax.servlet.http.HttpSession
@@ -25,18 +24,23 @@ import javax.servlet.http.HttpSession
  * OData servlet
  */
 @WebServlet(urlPatterns = ["/odata/*"], loadOnStartup = 1)
-class ODataServlet : HttpServlet() {
+class ODataServlet : AbstractServlet() {
 
     private val edmProvider: SchemaBasedEdmProvider = loadEdmProvider()
 
     @Throws(ServletException::class, IOException::class)
-    override fun service(req: HttpServletRequest, resp: HttpServletResponse?) {
+    override fun service(req: HttpServletRequest, resp: HttpServletResponse) {
         try {
+            if (!isValidSession(req)) {
+                resp.status = 401
+                return
+            }
+
             val session: HttpSession = req.getSession(true)
-            var dataProvider: DataProvider? = session.getAttribute(DataProvider::class.java.getName()) as DataProvider?
+            var dataProvider: DataProvider? = session.getAttribute(DataProvider::class.java.name) as DataProvider?
             if (dataProvider == null) {
                 dataProvider = DataProvider()
-                session.setAttribute(DataProvider::class.java.getName(), dataProvider)
+                session.setAttribute(DataProvider::class.java.name, dataProvider)
                 LOG.info("Created new data provider.")
             }
 
