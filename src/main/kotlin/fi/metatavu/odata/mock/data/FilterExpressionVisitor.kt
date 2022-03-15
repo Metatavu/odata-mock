@@ -163,7 +163,8 @@ class FilterExpressionVisitor(private val currentEntity: Entity) : ExpressionVis
      * @return result
      */
     private fun evaluateArithmeticOperation(
-        operator: BinaryOperatorKind, left: Any,
+        operator: BinaryOperatorKind,
+        left: Any,
         right: Any
     ): Any {
         return if (left is Int && right is Int) {
