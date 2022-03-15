@@ -217,8 +217,18 @@ class ODataProcessor(private val dataProvider: DataProvider) : EntityCollectionP
         }
     }
 
+    /**
+     * Reads a property
+     *
+     * @param response OData response
+     * @param uriInfo URI info
+     * @param contentType content type
+     * @param complex whether property is a complex type
+     */
     private fun readProperty(
-        response: ODataResponse, uriInfo: UriInfo, contentType: ContentType,
+        response: ODataResponse,
+        uriInfo: UriInfo,
+        contentType: ContentType,
         complex: Boolean
     ) {
         val edmEntitySet = getEdmEntitySet(uriInfo.asUriInfoResource())
@@ -278,11 +288,27 @@ class ODataProcessor(private val dataProvider: DataProvider) : EntityCollectionP
         }
     }
 
-    private fun readEntityInternal(uriInfo: UriInfoResource, entitySet: EdmEntitySet): Entity? {
+    /**
+     * Reads a entity
+     *
+     * @param uriInfo URI info
+     * @param entitySet entity set
+     * @return entity or null if could not be read
+     */
+    private fun readEntityInternal(
+        uriInfo: UriInfoResource,
+        entitySet: EdmEntitySet
+    ): Entity? {
         val resourceEntitySet = uriInfo.uriResourceParts[0] as UriResourceEntitySet
         return dataProvider.read(entitySet, resourceEntitySet.keyPredicates)
     }
 
+    /**
+     * Returns EDM entity set from URI info
+     *
+     * @param uriInfo URI info
+     * @return EDM entity set
+     */
     private fun getEdmEntitySet(uriInfo: UriInfoResource): EdmEntitySet {
         val resourcePaths = uriInfo.uriResourceParts
 
@@ -297,9 +323,22 @@ class ODataProcessor(private val dataProvider: DataProvider) : EntityCollectionP
         return uriResource.entitySet
     }
 
+    /**
+     * Returns context URL
+     *
+     * @param entitySet entity set
+     * @param isSingleEntity whether is a single entity or not
+     * @param expand expand options
+     * @param select select options
+     * @param navOrPropertyPath navigation property path
+     * @return context URL
+     */
     private fun getContextUrl(
-        entitySet: EdmEntitySet, isSingleEntity: Boolean,
-        expand: ExpandOption?, select: SelectOption?, navOrPropertyPath: String?
+        entitySet: EdmEntitySet,
+        isSingleEntity: Boolean,
+        expand: ExpandOption?,
+        select: SelectOption?,
+        navOrPropertyPath: String?
     ): ContextURL {
         return ContextURL.with().entitySet(entitySet)
             .selectList(odata!!.createUriHelper().buildContextURLSelectList(entitySet.entityType, expand, select))
