@@ -108,7 +108,9 @@ class ODataProcessor(private val dataProvider: DataProvider) : EntityCollectionP
     }
 
     override fun readEntity(
-        request: ODataRequest, response: ODataResponse, uriInfo: UriInfo,
+        request: ODataRequest,
+        response: ODataResponse,
+        uriInfo: UriInfo,
         requestedContentType: ContentType
     ) {
         val edmEntitySet = getEdmEntitySet(uriInfo.asUriInfoResource())

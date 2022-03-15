@@ -154,8 +154,17 @@ class FilterExpressionVisitor(private val currentEntity: Entity) : ExpressionVis
         }
     }
 
+    /**
+     * Evaluates arithmetic operation
+     *
+     * @param operator operator
+     * @param left left side
+     * @param right right side
+     * @return result
+     */
     private fun evaluateArithmeticOperation(
-        operator: BinaryOperatorKind, left: Any,
+        operator: BinaryOperatorKind,
+        left: Any,
         right: Any
     ): Any {
         return if (left is Int && right is Int) {
