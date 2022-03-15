@@ -48,6 +48,7 @@ class DataProvider {
      *
      * @param edmEntitySet entity set
      * @param keys keys
+     * @return found entity or null
      */
     fun read(edmEntitySet: EdmEntitySet, keys: List<UriParameter>): Entity? {
         val entityType = edmEntitySet.entityType
