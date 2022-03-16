@@ -25,6 +25,7 @@ dependencies {
     implementation("io.quarkus:quarkus-arc")
     implementation("io.quarkus:quarkus-undertow")
     implementation("io.quarkus:quarkus-resteasy-jackson")
+    implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
 
     implementation("org.apache.olingo:odata-server-api:$olingoVersion")
     implementation("org.apache.olingo:odata-server-core:$olingoVersion")

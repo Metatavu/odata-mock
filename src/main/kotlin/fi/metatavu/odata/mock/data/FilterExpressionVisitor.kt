@@ -4,10 +4,12 @@ import org.apache.olingo.commons.api.data.Entity
 import org.apache.olingo.commons.api.edm.EdmEnumType
 import org.apache.olingo.commons.api.edm.EdmType
 import org.apache.olingo.commons.api.http.HttpStatusCode
-import org.apache.olingo.commons.core.edm.primitivetype.EdmString
+import org.apache.olingo.commons.core.edm.primitivetype.*
 import org.apache.olingo.server.api.ODataApplicationException
 import org.apache.olingo.server.api.uri.UriResourcePrimitiveProperty
 import org.apache.olingo.server.api.uri.queryoption.expression.*
+import java.text.DateFormat
+import java.text.SimpleDateFormat
 import java.util.*
 
 /**
@@ -32,19 +34,48 @@ class FilterExpressionVisitor(private val currentEntity: Entity) : ExpressionVis
     }
 
     override fun visitLiteral(literal: Literal): Any {
-        val literalAsString = literal.text
-        return if (literal.type is EdmString) {
-            var stringLiteral = ""
-            if (literal.text.length > 2) {
-                stringLiteral = literalAsString.substring(1, literalAsString.length - 1)
+        return when (literal.type) {
+            is EdmString -> {
+                var stringLiteral = ""
+                if (literal.text.length > 2) {
+                    stringLiteral = literal.text.substring(1, literal.text.length - 1)
+                }
+
+                stringLiteral
             }
-            stringLiteral
-        } else {
-            try {
-                literalAsString.toInt()
-            } catch (e: NumberFormatException) {
-                throw ODataApplicationException(
-                    "Only Edm.Int32 and Edm.String literals are implemented",
+
+            is EdmDate -> {
+                val dateFormat: DateFormat = SimpleDateFormat("yyyy-MM-dd")
+                val date = dateFormat.parse(literal.text)
+                val calendar = Calendar.getInstance()
+                calendar.time = date
+
+                calendar
+            }
+
+            is EdmTimeOfDay -> {
+                val timeFormat: DateFormat = SimpleDateFormat("HH:mm")
+                val date = timeFormat.parse(literal.text)
+                val calendar = Calendar.getInstance()
+                calendar.time = date
+
+                calendar
+            }
+
+            is EdmInt64 -> {
+                literal.text.toInt()
+            }
+
+            is EdmInt32 -> {
+                literal.text.toInt()
+            }
+
+            is EdmInt16 -> {
+                literal.text.toInt()
+            }
+
+            else -> {
+                throw ODataApplicationException("Visit literal ${literal.type} not implemented.",
                     HttpStatusCode.NOT_IMPLEMENTED.statusCode, Locale.ENGLISH
                 )
             }
@@ -125,6 +156,7 @@ class FilterExpressionVisitor(private val currentEntity: Entity) : ExpressionVis
                 is Int -> left.compareTo((right as Int))
                 is String -> left.compareTo((right as String))
                 is Boolean -> left.compareTo((right as Boolean))
+                is GregorianCalendar -> left.compareTo(right as GregorianCalendar)
                 else -> {
                     throw ODataApplicationException(
                         "Class " + left.javaClass.canonicalName + " not expected",
