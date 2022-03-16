@@ -23,7 +23,7 @@ abstract class AbstractServlet: HttpServlet() {
      * @return session or null if not found
      */
     protected fun getSession(req: HttpServletRequest): String? {
-        return req.cookies.find { it.name == cookieName }?.value
+        return req.cookies?.find { it.name == cookieName }?.value
     }
 
     /**

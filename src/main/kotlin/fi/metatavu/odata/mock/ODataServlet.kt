@@ -1,7 +1,10 @@
 package fi.metatavu.odata.mock
 
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.module.kotlin.readValue
 import fi.metatavu.odata.mock.data.DataProvider
 import fi.metatavu.odata.mock.processor.ODataProcessor
+import fi.metatavu.odata.mock.sessions.SessionContainer
 import org.apache.olingo.commons.api.edmx.EdmxReference
 import org.apache.olingo.server.api.OData
 import org.apache.olingo.server.api.ODataHttpHandler
@@ -15,10 +18,19 @@ import java.io.IOException
 import java.io.InputStreamReader
 import javax.servlet.ServletException
 import javax.servlet.annotation.WebServlet
+import javax.servlet.http.Cookie
 import javax.servlet.http.HttpServletRequest
 import javax.servlet.http.HttpServletResponse
 import javax.servlet.http.HttpSession
 
+/**
+ * Login payload JSON
+ */
+private data class LoginPayload (
+    val CompanyDB: String?,
+    val UserName: String?,
+    val Password: String?
+)
 
 /**
  * OData servlet
@@ -28,8 +40,97 @@ class ODataServlet : AbstractServlet() {
 
     private val edmProvider: SchemaBasedEdmProvider = loadEdmProvider()
 
+    private val companydb: String
+        get() {
+            return ConfigProvider.getConfig()
+                .getValue("odata.mock.session.companydb", String::class.java)
+        }
+
+    private val username: String
+        get() {
+            return ConfigProvider.getConfig()
+                .getValue("odata.mock.session.username", String::class.java)
+        }
+
+    private val password: String
+        get() {
+            return ConfigProvider.getConfig()
+                .getValue("odata.mock.session.password", String::class.java)
+        }
+
     @Throws(ServletException::class, IOException::class)
     override fun service(req: HttpServletRequest, resp: HttpServletResponse) {
+        if ("/Login" == req.pathInfo) {
+            handleLogin(req, resp)
+        } else if ("/Logout" == req.pathInfo) {
+            handleLogout(req, resp)
+        } else {
+            handleODataRequest(req, resp)
+        }
+    }
+
+    /**
+     * Handles logout request
+     *
+     * @param req request
+     * @param resp response
+     */
+    private fun handleLogout(req: HttpServletRequest, resp: HttpServletResponse) {
+        val session = getSession(req)
+        if (session == null || !isValidSession(req)) {
+            resp.status = 401
+            return
+        }
+
+        SessionContainer.removeSession(session)
+        resp.addCookie(Cookie(cookieName, null))
+        resp.status = 200
+    }
+
+    /**
+     * Handles login request
+     *
+     * @param req request
+     * @param resp response
+     */
+    private fun handleLogin(req: HttpServletRequest, resp: HttpServletResponse) {
+        val objectMapper = jacksonObjectMapper()
+        val payload: LoginPayload = objectMapper.readValue(req.inputStream)
+
+        if (payload.CompanyDB != companydb) {
+            LOG.warn("CompanyDB ${payload.CompanyDB} does not match expected $companydb")
+            resp.status = 401
+            return
+        }
+
+        if (payload.Password != password) {
+            LOG.warn("Password ${payload.Password} does not match expected $password")
+            resp.status = 401
+            return
+        }
+
+        if (payload.UserName != username) {
+            LOG.warn("UserName ${payload.UserName} does not match expected $username")
+            resp.status = 401
+            return
+        }
+
+        val session = SessionContainer.addSession()
+        resp.addCookie(Cookie(cookieName, session))
+        resp.addCookie(Cookie("ROUTEID", "DEF"))
+        resp.status = 200
+    }
+
+    /**
+     * Handles OData request
+     *
+     * @param req request
+     * @param resp response
+     */
+    private fun handleODataRequest(
+        req: HttpServletRequest,
+        resp: HttpServletResponse
+    ) {
         try {
             if (!isValidSession(req)) {
                 resp.status = 401
