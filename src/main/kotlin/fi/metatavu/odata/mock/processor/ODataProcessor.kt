@@ -105,6 +105,24 @@ class ODataProcessor(private val dataProvider: DataProvider) : EntityCollectionP
             }
         }
 
+        val topOption = uriInfo.topOption
+        if (topOption != null) {
+            val topNumber = topOption.value
+            if (topNumber >= 0) {
+                if (topNumber <= entityCollection.entities.size) {
+                    while (entityCollection.entities.size > topNumber) {
+                        entityCollection.entities.removeAt(entityCollection.entities.size - 1)
+                    }
+                }
+            } else {
+                throw ODataApplicationException(
+                    "Invalid value for \$top",
+                    HttpStatusCode.BAD_REQUEST.statusCode,
+                    Locale.ROOT
+                )
+            }
+        }
+
         val serializedContent = serializer.entityCollection(
             edm, edmEntitySet.entityType, entityCollection,
             EntityCollectionSerializerOptions.with()
