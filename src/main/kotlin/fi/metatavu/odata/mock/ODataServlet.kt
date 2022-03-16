@@ -84,7 +84,7 @@ class ODataServlet : AbstractServlet() {
 
         SessionContainer.removeSession(session)
         resp.addCookie(Cookie(cookieName, null))
-        resp.status = 200
+        resp.status = 204
     }
 
     /**

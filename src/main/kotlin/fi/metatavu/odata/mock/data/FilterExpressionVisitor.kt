@@ -53,6 +53,15 @@ class FilterExpressionVisitor(private val currentEntity: Entity) : ExpressionVis
                 calendar
             }
 
+            is EdmTimeOfDay -> {
+                val timeFormat: DateFormat = SimpleDateFormat("HH:mm")
+                val date = timeFormat.parse(literal.text)
+                val calendar = Calendar.getInstance()
+                calendar.time = date
+
+                calendar
+            }
+
             is EdmInt64 -> {
                 literal.text.toInt()
             }
@@ -66,8 +75,7 @@ class FilterExpressionVisitor(private val currentEntity: Entity) : ExpressionVis
             }
 
             else -> {
-                throw ODataApplicationException(
-                    "Only Edm.Int32 and Edm.String literals are implemented",
+                throw ODataApplicationException("Visit literal ${literal.type} not implemented.",
                     HttpStatusCode.NOT_IMPLEMENTED.statusCode, Locale.ENGLISH
                 )
             }
