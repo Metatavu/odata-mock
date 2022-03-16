@@ -14,7 +14,6 @@ import org.apache.olingo.commons.api.format.ContentType
 import org.apache.olingo.commons.api.http.HttpHeader
 import org.apache.olingo.commons.api.http.HttpStatusCode
 import org.apache.olingo.server.api.*
-import org.apache.olingo.server.api.ODataApplicationException
 import org.apache.olingo.server.api.processor.*
 import org.apache.olingo.server.api.serializer.*
 import org.apache.olingo.server.api.uri.*
@@ -80,6 +79,28 @@ class ODataProcessor(private val dataProvider: DataProvider) : EntityCollectionP
                 throw ODataApplicationException(
                     "Exception in filter evaluation",
                     HttpStatusCode.INTERNAL_SERVER_ERROR.statusCode, Locale.ENGLISH
+                )
+            }
+        }
+
+        val skipOption = uriInfo.skipOption
+        if (skipOption != null) {
+            val skipNumber = skipOption.value
+            if (skipNumber >= 0) {
+                if (skipNumber <= entityCollection.entities.size) {
+                    var i = skipNumber
+                    while (i > 0) {
+                        entityCollection.entities.removeAt(0)
+                        i--
+                    }
+                } else {
+                    entityCollection.entities.clear()
+                }
+            } else {
+                throw ODataApplicationException(
+                    "Invalid value for \$skip",
+                    HttpStatusCode.BAD_REQUEST.statusCode,
+                    Locale.ROOT
                 )
             }
         }
