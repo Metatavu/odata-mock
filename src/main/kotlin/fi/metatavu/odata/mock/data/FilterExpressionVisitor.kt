@@ -253,11 +253,27 @@ class FilterExpressionVisitor(private val currentEntity: Entity) : ExpressionVis
         )
     }
 
-    override fun visitEnum(type: EdmEnumType, enumValues: List<String>): Any {
-        throw ODataApplicationException(
-            "Enums are not implemented",
-            HttpStatusCode.NOT_IMPLEMENTED.statusCode, Locale.ENGLISH
-        )
+    override fun visitEnum(type: EdmEnumType, enumValues: List<String>): Any? {
+        if (enumValues.isEmpty()) {
+            return null
+        }
+
+        val enumValue = enumValues.first()
+        val member = type.getMember(enumValue) ?: return null
+        val value = member.value ?: return null
+
+        return when (type.underlyingType) {
+            is EdmInt16 -> value.toInt()
+            is EdmInt32 -> value.toInt()
+            is EdmInt64 -> value.toInt()
+            is EdmString -> value
+            else -> {
+                throw ODataApplicationException(
+                    "Enums are not implemented for type ${type.underlyingType}",
+                    HttpStatusCode.NOT_IMPLEMENTED.statusCode, Locale.ENGLISH
+                )
+            }
+        }
     }
 
     override fun visitLambdaExpression(lambdaFunction: String, lambdaVariable: String, expression: Expression): Any {
