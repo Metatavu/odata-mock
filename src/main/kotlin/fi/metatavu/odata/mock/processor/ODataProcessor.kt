@@ -1,5 +1,7 @@
 package fi.metatavu.odata.mock.processor
 
+import fi.metatavu.odata.mock.api.model.Entry
+import fi.metatavu.odata.mock.data.DataContainer
 import fi.metatavu.odata.mock.data.DataProvider
 import fi.metatavu.odata.mock.data.DataProviderException
 import fi.metatavu.odata.mock.data.FilterExpressionVisitor
@@ -21,6 +23,7 @@ import org.apache.olingo.server.api.uri.queryoption.ExpandOption
 import org.apache.olingo.server.api.uri.queryoption.SelectOption
 import org.apache.olingo.server.api.uri.queryoption.expression.Expression
 import org.apache.olingo.server.api.uri.queryoption.expression.ExpressionVisitException
+import java.io.BufferedReader
 import java.io.ByteArrayInputStream
 import java.nio.charset.Charset
 import java.util.*
@@ -193,10 +196,33 @@ class ODataProcessor(private val dataProvider: DataProvider) : EntityCollectionP
         request: ODataRequest, response: ODataResponse, uriInfo: UriInfo,
         requestFormat: ContentType, responseFormat: ContentType
     ) {
-        throw ODataApplicationException(
-            "Entity create is not supported yet.",
-            HttpStatusCode.NOT_IMPLEMENTED.statusCode, Locale.ENGLISH
-        )
+        val entitySet = getEdmEntitySet(uriInfo.asUriInfoResource())
+        val entryName = entitySet.name
+        val entryData = String(request.body.readAllBytes())
+        val entryId = DataContainer.addEntry(Entry(name = entryName, data = entryData)).id!!
+        val entity = DataProvider().readByEntryId(entitySet, entryId)
+
+        val serializer = odata!!.createSerializer(responseFormat)
+        val expand = uriInfo.expandOption
+        val select = uriInfo.selectOption
+        val serializedContent = serializer.entity(
+            edm, entitySet.entityType, entity,
+            EntitySerializerOptions.with()
+                .contextURL(
+                    if (isODataMetadataNone(responseFormat)) null else getContextUrl(
+                        entitySet,
+                        true,
+                        expand,
+                        select,
+                        null
+                    )
+                )
+                .expand(expand).select(select)
+                .build()
+        ).content
+        response.content = serializedContent
+        response.statusCode = HttpStatusCode.OK.statusCode
+        response.setHeader(HttpHeader.CONTENT_TYPE, responseFormat.toContentTypeString())
     }
 
     override fun deleteEntity(request: ODataRequest, response: ODataResponse, uriInfo: UriInfo) {
