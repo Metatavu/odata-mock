@@ -477,7 +477,7 @@ class ODataProcessor(private val dataProvider: DataProvider) : EntityCollectionP
             }
         }
 
-        if (entries.size == 0) {
+        if (entryIds.size == 0) {
             throw ODataApplicationException(
                 "No entry found for this key", HttpStatusCode.NOT_FOUND
                     .statusCode, Locale.ENGLISH
