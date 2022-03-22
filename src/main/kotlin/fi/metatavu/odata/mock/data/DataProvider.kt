@@ -45,11 +45,11 @@ class DataProvider {
     }
 
     /**
-     * Reads entity by entry id
+     * Reads an entity. Using entry id
      *
      * @param edmEntitySet entity set
      * @param entryId entry id
-     * @return entity id
+     * @return entity
      */
     fun readByEntryId(edmEntitySet: EdmEntitySet, entryId: UUID): Entity? {
         val mockedEntry = DataContainer.getEntry(entryId) ?: return null
