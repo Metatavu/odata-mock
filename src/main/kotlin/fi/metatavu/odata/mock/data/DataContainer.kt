@@ -54,7 +54,7 @@ class DataContainer {
          * @param id id
          */
         fun removeEntry(id: UUID) {
-            entries.removeIf { it.id == id }
+            entries.removeIf { it.id.toString() == id.toString() }
         }
 
         /**

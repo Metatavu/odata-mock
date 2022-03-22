@@ -1,5 +1,8 @@
 package fi.metatavu.odata.mock.processor
 
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import fi.metatavu.odata.mock.api.model.Entry
+import fi.metatavu.odata.mock.data.DataContainer
 import fi.metatavu.odata.mock.data.DataProvider
 import fi.metatavu.odata.mock.data.DataProviderException
 import fi.metatavu.odata.mock.data.FilterExpressionVisitor
@@ -9,6 +12,7 @@ import org.apache.olingo.commons.api.data.Entity
 import org.apache.olingo.commons.api.data.EntityCollection
 import org.apache.olingo.commons.api.edm.EdmComplexType
 import org.apache.olingo.commons.api.edm.EdmEntitySet
+import org.apache.olingo.commons.api.edm.EdmEntityType
 import org.apache.olingo.commons.api.edm.EdmPrimitiveType
 import org.apache.olingo.commons.api.format.ContentType
 import org.apache.olingo.commons.api.http.HttpHeader
@@ -21,9 +25,12 @@ import org.apache.olingo.server.api.uri.queryoption.ExpandOption
 import org.apache.olingo.server.api.uri.queryoption.SelectOption
 import org.apache.olingo.server.api.uri.queryoption.expression.Expression
 import org.apache.olingo.server.api.uri.queryoption.expression.ExpressionVisitException
+import org.apache.olingo.server.core.deserializer.json.ODataJsonDeserializer
 import java.io.ByteArrayInputStream
 import java.nio.charset.Charset
 import java.util.*
+import java.util.logging.Logger
+import javax.inject.Inject
 
 /**
  * OData processor for mock data
@@ -193,10 +200,19 @@ class ODataProcessor(private val dataProvider: DataProvider) : EntityCollectionP
         request: ODataRequest, response: ODataResponse, uriInfo: UriInfo,
         requestFormat: ContentType, responseFormat: ContentType
     ) {
-        throw ODataApplicationException(
-            "Entity create is not supported yet.",
-            HttpStatusCode.NOT_IMPLEMENTED.statusCode, Locale.ENGLISH
-        )
+        val entitySet = getEdmEntitySet(uriInfo.asUriInfoResource())
+        val entryName = entitySet.name
+        val entryData = String(request.body.readAllBytes())
+        val serializedContent = createSerializedEntity(
+            entry = Entry(name = entryName, data = entryData),
+            entitySet = entitySet,
+            responseFormat = responseFormat,
+            uriInfo = uriInfo
+        ).content
+
+        response.content = serializedContent
+        response.statusCode = HttpStatusCode.OK.statusCode
+        response.setHeader(HttpHeader.CONTENT_TYPE, responseFormat.toContentTypeString())
     }
 
     override fun deleteEntity(request: ODataRequest, response: ODataResponse, uriInfo: UriInfo) {
@@ -446,9 +462,79 @@ class ODataProcessor(private val dataProvider: DataProvider) : EntityCollectionP
         uriInfo: UriInfo, requestFormat: ContentType,
         responseFormat: ContentType
     ) {
-        throw ODataApplicationException(
-            "Entity update is not supported yet.",
-            HttpStatusCode.NOT_IMPLEMENTED.statusCode, Locale.ENGLISH
+        val entryData = String(request.body.readAllBytes())
+        val edmEntitySet = getEdmEntitySet(uriInfo.asUriInfoResource())
+        val idPropertyName = edmEntitySet.entityType.keyPropertyRefs.first().name
+        val idPropertyValue = jacksonObjectMapper().readTree(entryData).get(idPropertyName)
+        val entityName = edmEntitySet.entityType.name
+        val entryIds = mutableListOf<UUID>()
+
+        DataContainer.getEntries(entityName).forEach {
+            val mockEntryId = it.id!!
+            val foundEntity = DataProvider().readByEntryId(edmEntitySet, mockEntryId)!!
+            val entryId = "${foundEntity.getProperty(idPropertyName).value}"
+            val queryId = "$idPropertyValue".trim('"')
+
+            if (entryId == queryId) {
+                DataContainer.removeEntry(mockEntryId)
+                entryIds.add(mockEntryId)
+            }
+        }
+
+        if (entryIds.size == 0) {
+            throw ODataApplicationException(
+                "No entry found for this key", HttpStatusCode.NOT_FOUND
+                    .statusCode, Locale.ENGLISH
+            )
+        } else {
+            val serializedContent = createSerializedEntity(
+                entry = Entry(id = entries.first(), name = entityName, data = entryData),
+                entitySet = edmEntitySet,
+                responseFormat = responseFormat,
+                uriInfo = uriInfo
+            ).content
+            response.content = serializedContent
+            response.statusCode = HttpStatusCode.OK.statusCode
+            response.setHeader(HttpHeader.CONTENT_TYPE, responseFormat.toContentTypeString())
+        }
+    }
+
+    /**
+     * Creates and serializes an entity
+     *
+     * @param entry new entry
+     * @param entitySet entity set to use
+     * @param responseFormat response format
+     * @param uriInfo uri info
+     * @return new entity
+     */
+    private fun createSerializedEntity(
+        entry: Entry,
+        entitySet: EdmEntitySet,
+        responseFormat: ContentType,
+        uriInfo: UriInfo
+    ): SerializerResult {
+        val entryId = DataContainer.addEntry(entry).id!!
+        val entity = DataProvider().readByEntryId(entitySet, entryId)
+
+        val serializer = odata!!.createSerializer(responseFormat)
+        val expand = uriInfo.expandOption
+        val select = uriInfo.selectOption
+
+        return serializer.entity(
+            edm, entitySet.entityType, entity,
+            EntitySerializerOptions.with()
+                .contextURL(
+                    if (isODataMetadataNone(responseFormat)) null else getContextUrl(
+                        entitySet,
+                        true,
+                        expand,
+                        select,
+                        null
+                    )
+                )
+                .expand(expand).select(select)
+                .build()
         )
     }
 
