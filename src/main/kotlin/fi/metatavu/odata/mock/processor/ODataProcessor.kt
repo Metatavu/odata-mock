@@ -467,13 +467,17 @@ class ODataProcessor(private val dataProvider: DataProvider) : EntityCollectionP
         val idPropertyName = edmEntitySet.entityType.keyPropertyRefs.first().name
         val idPropertyValue = jacksonObjectMapper().readTree(entryData).get(idPropertyName)
         val entityName = edmEntitySet.entityType.name
-        val entries = mutableListOf<UUID>()
+        val entryIds = mutableListOf<UUID>()
+
         DataContainer.getEntries(entityName).forEach {
-            val foundEntity = DataProvider().readByEntryId(edmEntitySet, it.id!!)
-            if (foundEntity!!.getProperty(idPropertyName).value.toString() == idPropertyValue.toString()) {
-                val entryId = it.id
-                DataContainer.removeEntry(entryId)
-                entries.add(entryId)
+            val mockEntryId = it.id!!
+            val foundEntity = DataProvider().readByEntryId(edmEntitySet, mockEntryId)!!
+            val entryId = "${foundEntity.getProperty(idPropertyName).value}"
+            val queryId = "$idPropertyValue".trim('"')
+
+            if (entryId == queryId) {
+                DataContainer.removeEntry(mockEntryId)
+                entryIds.add(mockEntryId)
             }
         }
 
