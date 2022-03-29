@@ -6,6 +6,7 @@ import org.apache.olingo.commons.api.ex.ODataException
 import org.apache.olingo.commons.api.format.ContentType
 import org.apache.olingo.server.api.uri.UriParameter
 import org.apache.olingo.server.core.deserializer.json.ODataJsonDeserializer
+import java.util.*
 
 /**
  * Exception used for data provider errors
@@ -41,6 +42,20 @@ class DataProvider {
         }
 
         return result
+    }
+
+    /**
+     * Reads an entity. Using entry id
+     *
+     * @param edmEntitySet entity set
+     * @param entryId entry id
+     * @return entity
+     */
+    fun readByEntryId(edmEntitySet: EdmEntitySet, entryId: UUID): Entity? {
+        val mockedEntry = DataContainer.getEntry(entryId) ?: return null
+        val deserializer = ODataJsonDeserializer(ContentType.APPLICATION_JSON)
+        val entityType: EdmEntityType = edmEntitySet.entityType
+        return deserializer.entity(mockedEntry.data.byteInputStream(), entityType).entity
     }
 
     /**
