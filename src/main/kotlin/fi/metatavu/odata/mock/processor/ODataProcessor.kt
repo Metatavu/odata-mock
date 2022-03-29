@@ -12,7 +12,6 @@ import org.apache.olingo.commons.api.data.Entity
 import org.apache.olingo.commons.api.data.EntityCollection
 import org.apache.olingo.commons.api.edm.EdmComplexType
 import org.apache.olingo.commons.api.edm.EdmEntitySet
-import org.apache.olingo.commons.api.edm.EdmEntityType
 import org.apache.olingo.commons.api.edm.EdmPrimitiveType
 import org.apache.olingo.commons.api.format.ContentType
 import org.apache.olingo.commons.api.http.HttpHeader
@@ -20,17 +19,17 @@ import org.apache.olingo.commons.api.http.HttpStatusCode
 import org.apache.olingo.server.api.*
 import org.apache.olingo.server.api.processor.*
 import org.apache.olingo.server.api.serializer.*
-import org.apache.olingo.server.api.uri.*
+import org.apache.olingo.server.api.uri.UriInfo
+import org.apache.olingo.server.api.uri.UriInfoResource
+import org.apache.olingo.server.api.uri.UriResourceEntitySet
+import org.apache.olingo.server.api.uri.UriResourceProperty
 import org.apache.olingo.server.api.uri.queryoption.ExpandOption
 import org.apache.olingo.server.api.uri.queryoption.SelectOption
 import org.apache.olingo.server.api.uri.queryoption.expression.Expression
 import org.apache.olingo.server.api.uri.queryoption.expression.ExpressionVisitException
-import org.apache.olingo.server.core.deserializer.json.ODataJsonDeserializer
 import java.io.ByteArrayInputStream
 import java.nio.charset.Charset
 import java.util.*
-import java.util.logging.Logger
-import javax.inject.Inject
 
 /**
  * OData processor for mock data
@@ -488,7 +487,7 @@ class ODataProcessor(private val dataProvider: DataProvider) : EntityCollectionP
             )
         } else {
             val serializedContent = createSerializedEntity(
-                entry = Entry(id = entries.first(), name = entityName, data = entryData),
+                entry = Entry(id = entryIds.first(), name = entityName, data = entryData),
                 entitySet = edmEntitySet,
                 responseFormat = responseFormat,
                 uriInfo = uriInfo
