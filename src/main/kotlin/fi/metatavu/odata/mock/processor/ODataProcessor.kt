@@ -1,5 +1,6 @@
 package fi.metatavu.odata.mock.processor
 
+import com.fasterxml.jackson.databind.node.ObjectNode
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import fi.metatavu.odata.mock.api.model.Entry
 import fi.metatavu.odata.mock.data.DataContainer
@@ -201,7 +202,14 @@ class ODataProcessor(private val dataProvider: DataProvider) : EntityCollectionP
     ) {
         val entitySet = getEdmEntitySet(uriInfo.asUriInfoResource())
         val entryName = entitySet.name
-        val entryData = String(request.body.readAllBytes())
+        val idPropertyName = entitySet.entityType.keyPropertyRefs.first().name
+        val id = getNextId(entitySet)
+
+        val objectMapper = jacksonObjectMapper()
+        val entry: ObjectNode = objectMapper.readTree(request.body) as ObjectNode
+        entry.put(idPropertyName, id)
+        val entryData = objectMapper.writeValueAsString(entry)
+
         val serializedContent = createSerializedEntity(
             entry = Entry(name = entryName, data = entryData),
             entitySet = entitySet,
@@ -535,6 +543,25 @@ class ODataProcessor(private val dataProvider: DataProvider) : EntityCollectionP
                 .expand(expand).select(select)
                 .build()
         )
+    }
+
+    /**
+     * Returns next available entry id
+     *
+     * Method currently supports only numeric ids
+     *
+     * @param edmEntitySet entity set
+     * @return next available entry id
+     */
+    private fun getNextId(edmEntitySet: EdmEntitySet): Long {
+        val idProperty = edmEntitySet.entityType.keyPropertyRefs.first().name
+        val entityCollection: EntityCollection = dataProvider.readAll(edmEntitySet)
+
+        val maxId: Long = entityCollection.entities
+            .map { it.getProperty(idProperty).value.toString().toLong() }
+            .maxByOrNull { it } ?: 0
+
+        return maxId + 1
     }
 
     companion object {
