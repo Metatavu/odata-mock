@@ -1,5 +1,7 @@
 package fi.metatavu.odata.mock.data
 
+import com.fasterxml.jackson.databind.node.ObjectNode
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import fi.metatavu.odata.mock.api.model.Entry
 import java.util.UUID
 
@@ -55,6 +57,28 @@ class DataContainer {
          */
         fun removeEntry(id: UUID) {
             entries.removeIf { it.id.toString() == id.toString() }
+        }
+
+        /**
+         * Removes entry
+         *
+         * @param entryName entry name
+         * @param propertyName property name
+         * @param propertyValue property value
+         */
+        fun removeEntryByKey(entryName: String, propertyName: String, propertyValue: Any) {
+            val objectMapper = jacksonObjectMapper()
+
+            entries.removeIf {
+                if (it.name == entryName) {
+                    val entry: ObjectNode = objectMapper.readTree(it.data) as ObjectNode
+                    val entryId = "${entry.get(propertyName)}".trim('"')
+                    val queryId = "$propertyValue".trim('"')
+                    entryId == queryId
+                } else {
+                    false
+                }
+            }
         }
 
         /**

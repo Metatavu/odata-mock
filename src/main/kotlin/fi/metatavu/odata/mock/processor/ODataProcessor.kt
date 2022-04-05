@@ -1,11 +1,13 @@
 package fi.metatavu.odata.mock.processor
 
+import com.fasterxml.jackson.databind.node.ObjectNode
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import fi.metatavu.odata.mock.api.model.Entry
 import fi.metatavu.odata.mock.data.DataContainer
 import fi.metatavu.odata.mock.data.DataProvider
 import fi.metatavu.odata.mock.data.DataProviderException
 import fi.metatavu.odata.mock.data.FilterExpressionVisitor
+import org.apache.commons.io.IOUtils
 import org.apache.olingo.commons.api.data.ContextURL
 import org.apache.olingo.commons.api.data.ContextURL.Suffix
 import org.apache.olingo.commons.api.data.Entity
@@ -29,6 +31,7 @@ import org.apache.olingo.server.api.uri.queryoption.expression.Expression
 import org.apache.olingo.server.api.uri.queryoption.expression.ExpressionVisitException
 import java.io.ByteArrayInputStream
 import java.nio.charset.Charset
+import java.nio.charset.StandardCharsets
 import java.util.*
 
 /**
@@ -201,7 +204,17 @@ class ODataProcessor(private val dataProvider: DataProvider) : EntityCollectionP
     ) {
         val entitySet = getEdmEntitySet(uriInfo.asUriInfoResource())
         val entryName = entitySet.name
-        val entryData = String(request.body.readAllBytes())
+        val objectMapper = jacksonObjectMapper()
+        val entry: ObjectNode = objectMapper.readTree(request.body) as ObjectNode
+        val entityCollection: EntityCollection = dataProvider.readAll(entitySet)
+
+        entitySet.entityType.keyPropertyRefs.forEach { keyPropertyRef ->
+            val keyProperty = keyPropertyRef.property
+            val keyName = keyProperty.name
+            entry.put(keyName, getNextId(entityCollection, keyName))
+        }
+
+        val entryData = objectMapper.writeValueAsString(entry)
         val serializedContent = createSerializedEntity(
             entry = Entry(name = entryName, data = entryData),
             entitySet = entitySet,
@@ -209,7 +222,10 @@ class ODataProcessor(private val dataProvider: DataProvider) : EntityCollectionP
             uriInfo = uriInfo
         ).content
 
-        response.content = serializedContent
+        val data = IOUtils.toString(serializedContent, StandardCharsets.UTF_8)
+        DataContainer.addEntry(Entry(name = entryName, data = data))
+
+        response.content = data.byteInputStream(StandardCharsets.UTF_8)
         response.statusCode = HttpStatusCode.OK.statusCode
         response.setHeader(HttpHeader.CONTENT_TYPE, responseFormat.toContentTypeString())
     }
@@ -461,41 +477,50 @@ class ODataProcessor(private val dataProvider: DataProvider) : EntityCollectionP
         uriInfo: UriInfo, requestFormat: ContentType,
         responseFormat: ContentType
     ) {
-        val entryData = String(request.body.readAllBytes())
-        val edmEntitySet = getEdmEntitySet(uriInfo.asUriInfoResource())
-        val idPropertyName = edmEntitySet.entityType.keyPropertyRefs.first().name
-        val idPropertyValue = jacksonObjectMapper().readTree(entryData).get(idPropertyName)
-        val entityName = edmEntitySet.entityType.name
-        val entryIds = mutableListOf<UUID>()
+        val entitySet = getEdmEntitySet(uriInfo.asUriInfoResource())
+        val oldEntity = readEntityInternal(uriInfo, entitySet) ?: throw ODataApplicationException(
+            "No entry found for this key", HttpStatusCode.NOT_FOUND
+                .statusCode, Locale.ENGLISH
+        )
 
-        DataContainer.getEntries(entityName).forEach {
-            val mockEntryId = it.id!!
-            val foundEntity = DataProvider().readByEntryId(edmEntitySet, mockEntryId)!!
-            val entryId = "${foundEntity.getProperty(idPropertyName).value}"
-            val queryId = "$idPropertyValue".trim('"')
+        val objectMapper = jacksonObjectMapper()
+        val newEntry: ObjectNode = objectMapper.readTree(request.body) as ObjectNode
+        val idPropertyName = entitySet.entityType.keyPropertyRefs.first().name
+        val entityName = entitySet.entityType.name
+        val entryId = oldEntity.getProperty(idPropertyName).value
 
-            if (entryId == queryId) {
-                DataContainer.removeEntry(mockEntryId)
-                entryIds.add(mockEntryId)
+        DataContainer.removeEntryByKey(
+            entryName = entityName,
+            propertyName = idPropertyName,
+            propertyValue = entryId
+        )
+
+        entitySet.entityType.keyPropertyRefs.forEach { keyPropertyRef ->
+            val keyProperty = keyPropertyRef.property
+            val keyName = keyProperty.name
+            val keyValue = oldEntity.getProperty(keyName).value
+
+            if (keyValue is Number) {
+                newEntry.put(keyName, keyValue.toLong())
+            } else {
+                newEntry.put(keyName, keyValue.toString())
             }
         }
 
-        if (entryIds.size == 0) {
-            throw ODataApplicationException(
-                "No entry found for this key", HttpStatusCode.NOT_FOUND
-                    .statusCode, Locale.ENGLISH
-            )
-        } else {
-            val serializedContent = createSerializedEntity(
-                entry = Entry(id = entryIds.first(), name = entityName, data = entryData),
-                entitySet = edmEntitySet,
-                responseFormat = responseFormat,
-                uriInfo = uriInfo
-            ).content
-            response.content = serializedContent
-            response.statusCode = HttpStatusCode.OK.statusCode
-            response.setHeader(HttpHeader.CONTENT_TYPE, responseFormat.toContentTypeString())
-        }
+        val entryData = objectMapper.writeValueAsString(newEntry)
+        val serializedContent = createSerializedEntity(
+            entry = Entry(name = entityName, data = entryData),
+            entitySet = entitySet,
+            responseFormat = responseFormat,
+            uriInfo = uriInfo
+        ).content
+
+        val data = IOUtils.toString(serializedContent, StandardCharsets.UTF_8)
+        DataContainer.addEntry(Entry(name = entityName, data = data))
+
+        response.content = ByteArrayInputStream(data.toByteArray())
+        response.statusCode = HttpStatusCode.OK.statusCode
+        response.setHeader(HttpHeader.CONTENT_TYPE, responseFormat.toContentTypeString())
     }
 
     /**
@@ -535,6 +560,23 @@ class ODataProcessor(private val dataProvider: DataProvider) : EntityCollectionP
                 .expand(expand).select(select)
                 .build()
         )
+    }
+
+    /**
+     * Returns next available entry id
+     *
+     * Method currently supports only numeric ids
+     *
+     * @param entityCollection entity collection
+     * @param idProperty name of the id property
+     * @return next available entry id
+     */
+    private fun getNextId(entityCollection: EntityCollection, idProperty: String): Long {
+        val maxId: Long = entityCollection.entities
+            .map { it.getProperty(idProperty).value.toString().toLong() }
+            .maxByOrNull { it } ?: 0
+
+        return maxId + 1
     }
 
     companion object {
