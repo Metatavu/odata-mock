@@ -83,7 +83,7 @@ class DataProvider {
                         property.isUnicode
                     )
 
-                    if ("'$value'" == key.text) {
+                    if (value == key.text || "'$value'" == key.text) {
                         return entity
                     }
                 }
