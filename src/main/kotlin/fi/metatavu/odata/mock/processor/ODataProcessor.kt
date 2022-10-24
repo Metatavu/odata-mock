@@ -115,8 +115,10 @@ class ODataProcessor(private val dataProvider: DataProvider) : EntityCollectionP
         }
 
         val topOption = uriInfo.topOption
-        if (topOption != null) {
-            val topNumber = topOption.value
+        val maxPageSize = getMaxPageSize(request)
+
+        if (topOption != null || maxPageSize != null) {
+            val topNumber = maxPageSize ?: topOption.value
             if (topNumber >= 0) {
                 if (topNumber <= entityCollection.entities.size) {
                     while (entityCollection.entities.size > topNumber) {
@@ -577,6 +579,25 @@ class ODataProcessor(private val dataProvider: DataProvider) : EntityCollectionP
             .maxByOrNull { it } ?: 0
 
         return maxId + 1
+    }
+
+    /**
+     * Returns max page size from Prefer header
+     *
+     * @param request request
+     * @return max page size
+     */
+    private fun getMaxPageSize(request: ODataRequest): Int? {
+        request.getHeader("Prefer")?.let {
+            if (it.contains("odata.maxpagesize=")) {
+                val parameterValue = it.split("=")
+                if (parameterValue.size == 2) {
+                    return parameterValue[1].toInt()
+                }
+            }
+        }
+
+        return null
     }
 
     companion object {
