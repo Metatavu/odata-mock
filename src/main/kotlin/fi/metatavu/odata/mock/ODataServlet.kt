@@ -117,7 +117,7 @@ class ODataServlet : AbstractServlet() {
 
         val session = SessionContainer.addSession()
         resp.addCookie(Cookie(cookieName, session))
-        resp.addCookie(Cookie("ROUTEID", "DEF"))
+        resp.addCookie(Cookie("Path", "DEF"))
         resp.status = 200
     }
 
