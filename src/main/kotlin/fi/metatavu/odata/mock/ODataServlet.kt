@@ -116,8 +116,9 @@ class ODataServlet : AbstractServlet() {
         }
 
         val session = SessionContainer.addSession()
-        resp.addCookie(Cookie(cookieName, session))
-        resp.addCookie(Cookie("Path", "DEF"))
+        val cookie = Cookie(cookieName, session)
+        cookie.path = "DEF"
+        resp.addCookie(cookie)
         resp.status = 200
     }
 
