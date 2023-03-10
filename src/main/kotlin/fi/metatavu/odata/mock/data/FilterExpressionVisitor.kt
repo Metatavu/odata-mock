@@ -53,6 +53,15 @@ class FilterExpressionVisitor(private val currentEntity: Entity) : ExpressionVis
                 calendar
             }
 
+            is EdmDateTimeOffset -> {
+                val dateFormat: DateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX")
+                val date = dateFormat.parse(literal.text)
+                val calendar = Calendar.getInstance()
+                calendar.time = date
+
+                calendar
+            }
+
             is EdmTimeOfDay -> {
                 val timeFormat: DateFormat = SimpleDateFormat("HH:mm")
                 val date = timeFormat.parse(literal.text)
