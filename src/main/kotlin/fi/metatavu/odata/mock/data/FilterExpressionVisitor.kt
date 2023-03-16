@@ -8,7 +8,6 @@ import org.apache.olingo.commons.core.edm.primitivetype.*
 import org.apache.olingo.server.api.ODataApplicationException
 import org.apache.olingo.server.api.uri.UriResourcePrimitiveProperty
 import org.apache.olingo.server.api.uri.queryoption.expression.*
-import java.text.DateFormat
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -45,21 +44,15 @@ class FilterExpressionVisitor(private val currentEntity: Entity) : ExpressionVis
             }
 
             is EdmDate -> {
-                val dateFormat: DateFormat = SimpleDateFormat("yyyy-MM-dd")
-                val date = dateFormat.parse(literal.text)
-                val calendar = Calendar.getInstance()
-                calendar.time = date
+                parseDate(literal = literal.text, tryFormats = arrayOf("yyyy-MM-dd"))
+            }
 
-                calendar
+            is EdmDateTimeOffset -> {
+                parseDate(literal = literal.text, tryFormats = arrayOf("yyyy-MM-dd'T'HH:mm:ssXXX", "yyyy-MM-dd'T'HH:mmXXX")).time
             }
 
             is EdmTimeOfDay -> {
-                val timeFormat: DateFormat = SimpleDateFormat("HH:mm")
-                val date = timeFormat.parse(literal.text)
-                val calendar = Calendar.getInstance()
-                calendar.time = date
-
-                calendar
+                parseDate(literal = literal.text, tryFormats = arrayOf("HH:mm"))
             }
 
             is EdmInt64 -> {
@@ -151,12 +144,13 @@ class FilterExpressionVisitor(private val currentEntity: Entity) : ExpressionVis
      * @return result
      */
     private fun evaluateComparisonOperation(operator: BinaryOperatorKind, left: Any, right: Any): Any {
-        return if (left.javaClass == right.javaClass && left is Comparable<*>) {
+        return if (isComparable(left = left, right = right)) {
             val result = when (left) {
                 is Int -> left.compareTo((right as Int))
                 is String -> left.compareTo((right as String))
                 is Boolean -> left.compareTo((right as Boolean))
                 is GregorianCalendar -> left.compareTo(right as GregorianCalendar)
+                is Date -> left.compareTo(right as Date)
                 else -> {
                     throw ODataApplicationException(
                         "Class " + left.javaClass.canonicalName + " not expected",
@@ -180,10 +174,37 @@ class FilterExpressionVisitor(private val currentEntity: Entity) : ExpressionVis
             }
         } else {
             throw ODataApplicationException(
-                "Comparison needs two equal types",
+                "Comparison needs two equal types ${left.javaClass} !== ${right.javaClass}",
                 HttpStatusCode.BAD_REQUEST.statusCode, Locale.ENGLISH
             )
         }
+    }
+
+    /**
+     * Returns whether comparison of left and right is supported by this service
+     *
+     * @param left left side
+     * @param right right side
+     * @return true if comparable
+     */
+    private fun isComparable(left: Any, right: Any): Boolean {
+        if (left !is Comparable<*> || right !is Comparable<*>) {
+            return false
+        }
+
+        if (left is Int && right is Int) {
+            return true
+        } else if (left is String && right is String) {
+            return true
+        } else if (left is Boolean && right is Boolean) {
+            return true
+        } else if (left is GregorianCalendar && right is GregorianCalendar) {
+            return true
+        } else if (left is Date && right is Date) {
+            return true
+        }
+
+        return left.javaClass == right.javaClass
     }
 
     /**
@@ -288,6 +309,43 @@ class FilterExpressionVisitor(private val currentEntity: Entity) : ExpressionVis
             "Lambda references are not implemented",
             HttpStatusCode.NOT_IMPLEMENTED.statusCode, Locale.ENGLISH
         )
+    }
+
+    /**
+     * Parses string literal to Calendar object using given date format
+     *
+     * If parsing fails, IllegalArgumentException is thrown
+     *
+     * @param literal string literal
+     * @param dateFormat date format
+     * @return Calendar object
+     */
+    private fun parseDate(literal: String, dateFormat: SimpleDateFormat): Calendar {
+        val date = dateFormat.parse(literal)
+        val calendar = Calendar.getInstance()
+        calendar.time = date
+        return calendar
+    }
+
+    /**
+     * Tries to parse string literal to Calendar object using given date formats
+     *
+     * If parsing fails, IllegalArgumentException is thrown
+     *
+     * @param literal string literal
+     * @param tryFormats date formats to try
+     * @return Calendar object
+     */
+    private fun parseDate(literal: String, tryFormats: Array<String>): Calendar {
+        for (tryFormat in tryFormats) {
+            try {
+                return parseDate(literal, SimpleDateFormat(tryFormat))
+            } catch (e: Exception) {
+                // Ignore
+            }
+        }
+
+        throw IllegalArgumentException("Failed to parse date $literal")
     }
 
 }
